@@ -29,6 +29,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(unique = true)
+    private String username;
+
     @Column(nullable = true) // nullable for SSO-only members
     private String password;
 

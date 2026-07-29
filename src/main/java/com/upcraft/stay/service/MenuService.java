@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 public class MenuService {
 
     private final MealRepository mealRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public MealDto addMeal(CreateMealRequest req) {
@@ -33,7 +34,15 @@ public class MenuService {
                 .available(true)
                 .dateScheduled(req.getDateScheduled())
                 .build();
-        return toDto(mealRepository.save(meal));
+        Meal saved = mealRepository.save(meal);
+
+        notificationService.notifyAllMembers(
+                "Food Menu Updated",
+                "New " + req.getType() + " item: " + req.getName() + " scheduled for " + req.getDateScheduled() + " (" + (req.getServingTime() != null ? req.getServingTime() : "") + ")",
+                "MENU"
+        );
+
+        return toDto(saved);
     }
 
     @Transactional
@@ -47,7 +56,15 @@ public class MenuService {
         meal.setServingTime(req.getServingTime());
         meal.setVeg(req.isVeg());
         meal.setDateScheduled(req.getDateScheduled());
-        return toDto(mealRepository.save(meal));
+        Meal updated = mealRepository.save(meal);
+
+        notificationService.notifyAllMembers(
+                "Food Menu Updated",
+                "Updated " + req.getType() + " item: " + req.getName() + " (" + (req.getServingTime() != null ? req.getServingTime() : "") + ")",
+                "MENU"
+        );
+
+        return toDto(updated);
     }
 
     @Transactional(readOnly = true)

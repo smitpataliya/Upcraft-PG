@@ -27,8 +27,22 @@ public class MemberService {
 
     @Transactional
     public MemberDto createMember(CreateMemberRequest req) {
-        if (userRepository.existsByEmail(req.getEmail())) {
+        String email = req.getEmail().toLowerCase().trim();
+        if (userRepository.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+        }
+
+        String username = req.getUsername() != null ? req.getUsername().trim().toLowerCase() : null;
+        if (username != null && !username.isEmpty()) {
+            if (userRepository.existsByUsername(username)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
+            }
+        } else {
+            String prefix = email.split("@")[0];
+            username = prefix;
+            if (userRepository.existsByUsername(username)) {
+                username = prefix + UUID.randomUUID().toString().substring(0, 4);
+            }
         }
 
         Room room = null;
@@ -44,7 +58,8 @@ public class MemberService {
 
         User member = User.builder()
                 .name(req.getName())
-                .email(req.getEmail())
+                .email(email)
+                .username(username)
                 .phone(req.getPhone())
                 .password(passwordEncoder.encode(req.getPassword()))
                 .role(Role.PG_MEMBER)
@@ -73,6 +88,54 @@ public class MemberService {
     }
 
     @Transactional
+    public MemberDto updateMember(UUID id, UpdateMemberRequest req) {
+        User member = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
+
+        if (req.getName() != null) member.setName(req.getName());
+
+        if (req.getEmail() != null && !req.getEmail().equalsIgnoreCase(member.getEmail())) {
+            String cleanEmail = req.getEmail().toLowerCase().trim();
+            if (userRepository.existsByEmail(cleanEmail)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already in use");
+            }
+            member.setEmail(cleanEmail);
+        }
+
+        if (req.getUsername() != null && !req.getUsername().equalsIgnoreCase(member.getUsername())) {
+            String cleanUsername = req.getUsername().toLowerCase().trim();
+            if (userRepository.existsByUsername(cleanUsername)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken");
+            }
+            member.setUsername(cleanUsername);
+        }
+
+        if (req.getPhone() != null) member.setPhone(req.getPhone());
+        if (req.getEmergencyContact() != null) member.setEmergencyContact(req.getEmergencyContact());
+        if (req.getAddress() != null) member.setAddress(req.getAddress());
+        if (req.getBedNumber() != null) member.setBedNumber(req.getBedNumber());
+        if (req.getCheckInDate() != null) member.setCheckInDate(req.getCheckInDate());
+        if (req.getActive() != null) member.setActive(req.getActive());
+
+        if (req.getRoomId() != null) {
+            Room newRoom = roomRepository.findById(req.getRoomId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Room not found"));
+            if (member.getRoom() == null || !member.getRoom().getId().equals(newRoom.getId())) {
+                if (member.getRoom() != null) {
+                    Room oldRoom = member.getRoom();
+                    oldRoom.setOccupied(Math.max(0, oldRoom.getOccupied() - 1));
+                    roomRepository.save(oldRoom);
+                }
+                newRoom.setOccupied(newRoom.getOccupied() + 1);
+                roomRepository.save(newRoom);
+                member.setRoom(newRoom);
+            }
+        }
+
+        return toDto(userRepository.save(member));
+    }
+
+    @Transactional
     public void assignRoom(UUID memberId, AssignRoomRequest req) {
         User user = userRepository.findById(memberId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
@@ -90,8 +153,12 @@ public class MemberService {
         if (user.getRole() != Role.PG_MEMBER) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target must be a member");
         }
-        user.setActive(false);
-        userRepository.save(user);
+        if (user.getRoom() != null) {
+            Room room = user.getRoom();
+            room.setOccupied(Math.max(0, room.getOccupied() - 1));
+            roomRepository.save(room);
+        }
+        userRepository.delete(user);
     }
 
     @Transactional
@@ -129,6 +196,7 @@ public class MemberService {
                 .id(u.getId())
                 .name(u.getName())
                 .email(u.getEmail())
+                .username(u.getUsername())
                 .phone(u.getPhone())
                 .active(u.isActive())
                 .emergencyContact(u.getEmergencyContact())

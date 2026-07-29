@@ -76,6 +76,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,    "/api/menu/weekly").authenticated()
                 .requestMatchers(HttpMethod.POST,   "/api/queries/*/reply").authenticated()
                 .requestMatchers(HttpMethod.PUT,    "/api/members/profile", "/api/members/profile/password").authenticated()
+                .requestMatchers("/api/notifications", "/api/notifications/**").authenticated()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

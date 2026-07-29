@@ -38,6 +38,12 @@ public class MemberController {
         return ResponseEntity.noContent().build();
     }
 
+    /** OWNER: update member details */
+    @PutMapping("/{id}")
+    public ResponseEntity<MemberDto> updateMember(@PathVariable UUID id, @RequestBody UpdateMemberRequest req) {
+        return ResponseEntity.ok(memberService.updateMember(id, req));
+    }
+
     /** OWNER: get a member by ID */
     @GetMapping("/{id}")
     public ResponseEntity<MemberDto> getById(@PathVariable UUID id) {

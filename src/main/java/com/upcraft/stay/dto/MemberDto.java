@@ -13,6 +13,7 @@ public class MemberDto {
     private UUID id;
     private String name;
     private String email;
+    private String username;
     private String phone;
     private boolean active;
     private String emergencyContact;

@@ -19,16 +19,14 @@ public class AuthService {
     private final JwtUtil jwtUtil;
 
     public AuthResponse login(AuthRequest request) {
+        String identifier = request.getEmail().trim().toLowerCase();
+
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(identifier, request.getPassword())
         );
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailOrUsername(identifier, identifier)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-
-        if (!user.isActive()) {
-            throw new DisabledException("Your account has been deactivated. Please contact the owner.");
-        }
 
         var userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
@@ -44,6 +42,7 @@ public class AuthService {
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
+                .username(user.getUsername())
                 .role(user.getRole())
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())

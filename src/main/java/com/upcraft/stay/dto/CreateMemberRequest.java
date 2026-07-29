@@ -15,6 +15,8 @@ public class CreateMemberRequest {
     @NotBlank
     private String email;
 
+    private String username;
+
     @NotBlank
     private String phone;
 
