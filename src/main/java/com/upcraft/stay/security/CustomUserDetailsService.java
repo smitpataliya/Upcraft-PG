@@ -1,14 +1,23 @@
 package com.upcraft.stay.security;
 
-import com.upcraft.stay.repository.UserRepository;
+import java.util.List;
+
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.*;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import com.upcraft.stay.common.constants.AppConstants;
+import com.upcraft.stay.domain.entity.User;
+import com.upcraft.stay.repository.UserRepository;
 
+/**
+ * Loads active platform user credentials and authorities from MySQL.
+ */
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
@@ -18,16 +27,18 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
-        String clean = identifier.trim().toLowerCase();
-        var user = userRepository.findByEmailOrUsername(clean, clean)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + identifier));
+        String cleanIdentifier = StringUtils.trimToEmpty(identifier).toLowerCase();
+        User userEntity = userRepository.findByEmailOrUsername(cleanIdentifier, cleanIdentifier)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         return new org.springframework.security.core.userdetails.User(
-                user.getEmail(),
-                user.getPassword(),
+                userEntity.getEmail(),
+                StringUtils.defaultString(userEntity.getPassword()),
+                userEntity.isActive(),
                 true,
-                true, true, true,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                true,
+                true,
+                List.of(new SimpleGrantedAuthority(AppConstants.ROLE_PREFIX + userEntity.getRole().name()))
         );
     }
 }

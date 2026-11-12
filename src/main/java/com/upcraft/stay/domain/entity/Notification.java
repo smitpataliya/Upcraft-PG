@@ -32,6 +32,7 @@ public class Notification {
 
     private String type; // e.g. "MENU", "ANNOUNCEMENT", "GENERAL"
 
+    @Builder.Default
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;
 

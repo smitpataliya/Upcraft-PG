@@ -36,9 +36,11 @@ public class Meal {
 
     private String servingTime;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean veg = true;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean available = true;
 

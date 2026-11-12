@@ -1,0 +1,156 @@
+-- V9: Create invoices, invoice_items, payments, and payment_adjustments tables
+-- enforcing idempotent monthly rent generation and immutable payment audit trails.
+
+CREATE TABLE invoices (
+    id BINARY(16) NOT NULL,
+    organization_id BINARY(16) NOT NULL,
+    property_id BINARY(16) NOT NULL,
+    tenant_id BINARY(16) NOT NULL,
+    tenancy_id BINARY(16) NULL,
+    room_id BINARY(16) NULL,
+    bed_id BINARY(16) NULL,
+    invoice_number VARCHAR(50) NOT NULL,
+    invoice_type VARCHAR(30) NOT NULL DEFAULT 'MONTHLY_RENT',
+    billing_year INT NOT NULL,
+    billing_month INT NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    issue_date DATE NOT NULL,
+    due_date DATE NOT NULL,
+    subtotal_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    late_fee_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    balance_due DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    invoice_status VARCHAR(30) NOT NULL DEFAULT 'UNPAID',
+    notes TEXT NULL,
+    status_reason TEXT NULL,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL,
+    created_by VARCHAR(100) NULL,
+    updated_at DATETIME(6) NULL,
+    updated_by VARCHAR(100) NULL,
+    deleted_at DATETIME(6) NULL,
+    deleted_by VARCHAR(100) NULL,
+    status SMALLINT NOT NULL DEFAULT 1,
+    audit_tracker_id VARCHAR(64) NULL,
+    active_guard TINYINT GENERATED ALWAYS AS (CASE WHEN status <> 9 THEN 1 ELSE NULL END) STORED,
+    active_invoice_guard VARCHAR(80) GENERATED ALWAYS AS (
+        CASE
+            WHEN status <> 9 AND tenancy_id IS NOT NULL AND invoice_type = 'MONTHLY_RENT' AND invoice_status <> 'CANCELLED'
+            THEN CONCAT(HEX(tenancy_id), ':', billing_year, '-', billing_month)
+            ELSE NULL
+        END
+    ) STORED,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_invoices_org_number (organization_id, invoice_number, active_guard),
+    UNIQUE KEY uk_invoices_tenancy_period (active_invoice_guard),
+    KEY idx_invoices_prop_period_status (property_id, billing_year, billing_month, invoice_status),
+    KEY idx_invoices_tenant_due (tenant_id, due_date),
+    KEY idx_invoices_tenancy (tenancy_id, billing_year, billing_month),
+    CONSTRAINT fk_invoices_org FOREIGN KEY (organization_id) REFERENCES organizations (id),
+    CONSTRAINT fk_invoices_property FOREIGN KEY (property_id) REFERENCES properties (id),
+    CONSTRAINT fk_invoices_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
+    CONSTRAINT fk_invoices_tenancy FOREIGN KEY (tenancy_id) REFERENCES tenancies (id),
+    CONSTRAINT fk_invoices_room FOREIGN KEY (room_id) REFERENCES rooms (id),
+    CONSTRAINT fk_invoices_bed FOREIGN KEY (bed_id) REFERENCES beds (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE invoice_items (
+    id BINARY(16) NOT NULL,
+    invoice_id BINARY(16) NOT NULL,
+    item_type VARCHAR(30) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    quantity DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+    unit_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    line_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL,
+    created_by VARCHAR(100) NULL,
+    updated_at DATETIME(6) NULL,
+    updated_by VARCHAR(100) NULL,
+    deleted_at DATETIME(6) NULL,
+    deleted_by VARCHAR(100) NULL,
+    status SMALLINT NOT NULL DEFAULT 1,
+    audit_tracker_id VARCHAR(64) NULL,
+    PRIMARY KEY (id),
+    KEY idx_invoice_items_invoice (invoice_id, sort_order),
+    CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE payments (
+    id BINARY(16) NOT NULL,
+    organization_id BINARY(16) NOT NULL,
+    property_id BINARY(16) NOT NULL,
+    tenant_id BINARY(16) NOT NULL,
+    invoice_id BINARY(16) NOT NULL,
+    receipt_number VARCHAR(50) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    paid_at DATETIME(6) NOT NULL,
+    payment_method VARCHAR(30) NOT NULL,
+    payment_status VARCHAR(30) NOT NULL DEFAULT 'COMPLETED',
+    reference_number VARCHAR(120) NULL,
+    idempotency_key VARCHAR(100) NULL,
+    recorded_by_user_id BINARY(16) NOT NULL,
+    gateway_provider VARCHAR(40) NOT NULL DEFAULT 'MANUAL',
+    gateway_payment_id VARCHAR(120) NULL,
+    proof_url VARCHAR(500) NULL,
+    notes TEXT NULL,
+    version BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL,
+    created_by VARCHAR(100) NULL,
+    updated_at DATETIME(6) NULL,
+    updated_by VARCHAR(100) NULL,
+    deleted_at DATETIME(6) NULL,
+    deleted_by VARCHAR(100) NULL,
+    status SMALLINT NOT NULL DEFAULT 1,
+    audit_tracker_id VARCHAR(64) NULL,
+    active_guard TINYINT GENERATED ALWAYS AS (CASE WHEN status <> 9 THEN 1 ELSE NULL END) STORED,
+    active_idempotency_guard VARCHAR(150) GENERATED ALWAYS AS (
+        CASE
+            WHEN status <> 9 AND idempotency_key IS NOT NULL AND idempotency_key <> ''
+            THEN CONCAT(HEX(invoice_id), ':', LEFT(idempotency_key, 100))
+            ELSE NULL
+        END
+    ) STORED,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_payments_org_receipt (organization_id, receipt_number, active_guard),
+    UNIQUE KEY uk_payments_idempotency (active_idempotency_guard),
+    KEY idx_payments_prop_paid_at (property_id, paid_at),
+    KEY idx_payments_invoice (invoice_id, payment_status),
+    KEY idx_payments_tenant (tenant_id, paid_at),
+    CONSTRAINT fk_payments_org FOREIGN KEY (organization_id) REFERENCES organizations (id),
+    CONSTRAINT fk_payments_property FOREIGN KEY (property_id) REFERENCES properties (id),
+    CONSTRAINT fk_payments_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
+    CONSTRAINT fk_payments_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id),
+    CONSTRAINT fk_payments_recorder FOREIGN KEY (recorded_by_user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE payment_adjustments (
+    id BINARY(16) NOT NULL,
+    organization_id BINARY(16) NOT NULL,
+    payment_id BINARY(16) NOT NULL,
+    invoice_id BINARY(16) NOT NULL,
+    adjustment_type VARCHAR(30) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    reason TEXT NOT NULL,
+    adjusted_by_user_id BINARY(16) NOT NULL,
+    adjusted_at DATETIME(6) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    created_by VARCHAR(100) NULL,
+    updated_at DATETIME(6) NULL,
+    updated_by VARCHAR(100) NULL,
+    deleted_at DATETIME(6) NULL,
+    deleted_by VARCHAR(100) NULL,
+    status SMALLINT NOT NULL DEFAULT 1,
+    audit_tracker_id VARCHAR(64) NULL,
+    PRIMARY KEY (id),
+    KEY idx_payment_adjustments_payment (payment_id),
+    KEY idx_payment_adjustments_invoice (invoice_id),
+    CONSTRAINT fk_pay_adj_org FOREIGN KEY (organization_id) REFERENCES organizations (id),
+    CONSTRAINT fk_pay_adj_payment FOREIGN KEY (payment_id) REFERENCES payments (id),
+    CONSTRAINT fk_pay_adj_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id),
+    CONSTRAINT fk_pay_adj_actor FOREIGN KEY (adjusted_by_user_id) REFERENCES users (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

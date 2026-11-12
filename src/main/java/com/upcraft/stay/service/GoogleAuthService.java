@@ -2,17 +2,21 @@ package com.upcraft.stay.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.upcraft.stay.domain.entity.User;
-import com.upcraft.stay.domain.enums.Role;
-import com.upcraft.stay.dto.AuthResponse;
-import com.upcraft.stay.repository.UserRepository;
-import com.upcraft.stay.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.upcraft.stay.auth.dto.AuthTokenResponseDTO;
+import com.upcraft.stay.auth.dto.AuthenticatedUserDTO;
+import com.upcraft.stay.domain.entity.User;
+import com.upcraft.stay.domain.enums.Role;
+import com.upcraft.stay.dto.AuthResponse;
+import com.upcraft.stay.repository.UserRepository;
+import com.upcraft.stay.security.AccessGuardService;
+import com.upcraft.stay.security.JwtTokenFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -21,18 +25,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 /**
- * Verifies a Google ID token via Google's tokeninfo endpoint (no extra dependency needed).
- * After verification, finds or creates the member account, then returns a JWT.
- *
- * NOTE: Only PG_MEMBER accounts can use Google SSO.
- *       PG_OWNER and SUPER_ADMIN must log in with email + password.
+ * Verifies a Google ID token via Google's tokeninfo endpoint.
+ * Preserves existing PG_MEMBER Google SSO compatibility while hydrating organization context.
  */
 @Service
 @RequiredArgsConstructor
 public class GoogleAuthService {
 
     private final UserRepository userRepository;
-    private final JwtUtil jwtUtil;
+    private final AccessGuardService accessGuardService;
+    private final JwtTokenFactory jwtTokenFactory;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${app.google.client-id:}")
@@ -67,17 +69,13 @@ public class GoogleAuthService {
         }
         userRepository.save(user);
 
-        // Generate JWT (same mechanism as password login)
-        var userDetails = org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
-                .password(user.getPassword() != null ? user.getPassword() : "")
-                .roles(user.getRole().name())
-                .build();
-
-        String token = jwtUtil.generateToken(userDetails);
+        AuthenticatedUserDTO authenticatedUserDTO = accessGuardService.buildAuthenticatedUser(user);
+        AuthTokenResponseDTO tokenResponse = jwtTokenFactory.createTokenResponse(
+                authenticatedUserDTO, user.getPassword(), user.isActive()
+        );
 
         return AuthResponse.builder()
-                .token(token)
+                .token(tokenResponse.token())
                 .type("Bearer")
                 .id(user.getId())
                 .name(user.getName())
@@ -85,6 +83,7 @@ public class GoogleAuthService {
                 .role(user.getRole())
                 .phone(user.getPhone())
                 .avatarUrl(user.getAvatarUrl())
+                .user(authenticatedUserDTO)
                 .build();
     }
 

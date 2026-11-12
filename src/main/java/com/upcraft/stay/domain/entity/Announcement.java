@@ -28,6 +28,7 @@ public class Announcement {
 
     private String category;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean pinned = false;
 

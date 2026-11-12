@@ -1,11 +1,16 @@
 package com.upcraft.stay.dto;
 
-import com.upcraft.stay.domain.enums.Role;
+import java.util.UUID;
+
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.UUID;
+import com.upcraft.stay.auth.dto.AuthenticatedUserDTO;
+import com.upcraft.stay.domain.enums.Role;
 
+/**
+ * Legacy authentication response preserving flat properties alongside nested {@code user} metadata.
+ */
 @Data
 @Builder
 public class AuthResponse {
@@ -18,4 +23,5 @@ public class AuthResponse {
     private Role role;
     private String phone;
     private String avatarUrl;
+    private AuthenticatedUserDTO user;
 }

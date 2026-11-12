@@ -37,14 +37,15 @@ public class User {
 
     private String phone;
 
-    private String googleId;   // Google OAuth subject ID
+    private String googleId; // Google OAuth subject ID
 
-    private String avatarUrl;  // profile picture from Google
+    private String avatarUrl; // profile picture from Google
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
 
+    @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
 
