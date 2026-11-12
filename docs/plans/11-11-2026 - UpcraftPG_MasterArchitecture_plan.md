@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress (Milestones M1–M4 completed & verified; M5–M7 pending)
+In progress (Milestones M1–M5 completed & verified; M6–M7 pending)
 
 ## Baseline Git Checkpoints (Preserved)
 

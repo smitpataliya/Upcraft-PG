@@ -25,6 +25,7 @@ public class AppProperties {
     private Otp otp = new Otp();
     private Storage storage = new Storage();
     private Electricity electricity = new Electricity();
+    private Notifications notifications = new Notifications();
 
     @Getter
     @Setter
@@ -84,6 +85,23 @@ public class AppProperties {
         private double unusualMultiplier = 2.5;
         private double unusualMinUnits = 300.0;
         private int defaultInvoiceDueDays = 7;
+    }
+
+    @Getter
+    @Setter
+    public static class Notifications {
+        private boolean emailEnabled = false;
+        private boolean pushEnabled = true;
+        private String expoPushUrl = "https://exp.host/--/api/v2/push/send";
+        private String expoAccessToken = "";
+        private int providerTimeoutMs = 5000;
+        private String smsProvider = "";
+        private String smsApiKey = "";
+        private String whatsappProvider = "";
+        private String whatsappApiKey = "";
+        private int asyncCorePoolSize = 4;
+        private int asyncMaxPoolSize = 16;
+        private int asyncQueueCapacity = 200;
     }
 }
 

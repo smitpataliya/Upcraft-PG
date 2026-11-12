@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved
+Done (verified: 31 passed / 0 failed / 3 MySQL-env skipped in Backend `mvn test`; Web `vite build` + `tsc --noEmit` exit 0; Mobile `tsc --noEmit` + 17/17 Vitest + `expo export --platform android` exit 0)
 
 ## Module Overview
 
@@ -175,15 +175,15 @@ All endpoints wrap responses in `ApiResponseDTO<T>`, paginate lists via `Paginat
 
 ## Implementation Checklist
 
-- [ ] Flyway `V13__milestone5_operations_tables.sql` + SQL verification doc
-- [ ] Backend enums, entities, repositories, specs, mappers, DTOs (`operations.*`)
-- [ ] `StoredFileServiceImpl` read authorization extension for `COMPLAINT_PHOTO` & `DocumentEntity`
-- [ ] `AsyncConfig`, `NotificationChannelProvider` adapters, `NotificationDispatchService`
-- [ ] Services & `/api/v1/*` controllers (`Complaints`, `Announcements`, `FoodMenu`, `Documents`, `ManagerTasks`, `Notifications`, `PushTokens`)
-- [ ] Unit + `Milestone5OperationsIntegrationTest` + `FlywayMySqlIntegrationTest` update
-- [ ] Web frontend (`Upcraft-Shree-krishna-pg-frontend`) Milestone 5 `/api/v1/*` services, components, routes & nav
-- [ ] Mobile (`Upcraft-PG-mobile`) Milestone 5 `/api/v1/*` services, screens, push registration & tests
-- [ ] Full backend/web/mobile build, lint, test & live MySQL verification
+- [x] Flyway `V13__milestone5_operations_tables.sql` + SQL verification doc
+- [x] Backend enums, entities, repositories, specs, mappers, DTOs (`operations.*`)
+- [x] `StoredFileServiceImpl` read authorization extension for `COMPLAINT_PHOTO` & `DocumentEntity`
+- [x] `AsyncConfig`, `NotificationChannelProvider` adapters, `NotificationDispatchService`
+- [x] Services & `/api/v1/*` controllers (`Complaints`, `Announcements`, `FoodMenu`, `Documents`, `ManagerTasks`, `Notifications`, `PushTokens`)
+- [x] Unit + `Milestone5OperationsIntegrationTest` + `FlywayMySqlIntegrationTest` update
+- [x] Web frontend (`Upcraft-Shree-krishna-pg-frontend`) Milestone 5 `/api/v1/*` services, components, routes & nav
+- [x] Mobile (`Upcraft-PG-mobile`) Milestone 5 `/api/v1/*` services, screens, push registration & tests
+- [x] Backend H2 tests + Web + Mobile build/typecheck verification (live MySQL `FlywayMySqlIntegrationTest` requires `MYSQL_INTEGRATION_TEST=true` + `MYSQL_TEST_PASSWORD`)
 
 ## Change History
 

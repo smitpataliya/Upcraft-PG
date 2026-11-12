@@ -22,8 +22,11 @@ import com.upcraft.stay.common.exception.ValidationException;
 import com.upcraft.stay.domain.entity.User;
 import com.upcraft.stay.domain.enums.Role;
 import com.upcraft.stay.electricity.repository.ElectricityBillRepository;
+import com.upcraft.stay.operations.repository.ComplaintAttachmentRepository;
+import com.upcraft.stay.operations.repository.DocumentRepository;
 import com.upcraft.stay.organization.entity.OrganizationEntity;
 import com.upcraft.stay.property.entity.PropertyEntity;
+import com.upcraft.stay.repository.AnnouncementRepository;
 import com.upcraft.stay.security.AccessGuardService;
 import com.upcraft.stay.storage.dto.StoredFileResponseDTO;
 import com.upcraft.stay.storage.entity.StoredFileEntity;
@@ -53,6 +56,9 @@ public class StoredFileServiceImpl implements StoredFileService {
     private final AccessGuardService accessGuardService;
     private final StoredFileRepository storedFileRepository;
     private final ElectricityBillRepository electricityBillRepository;
+    private final ComplaintAttachmentRepository complaintAttachmentRepository;
+    private final DocumentRepository documentRepository;
+    private final AnnouncementRepository announcementRepository;
     private final FileStorageBoundary fileStorageBoundary;
     private final AppProperties appProperties;
 
@@ -161,10 +167,18 @@ public class StoredFileServiceImpl implements StoredFileService {
             return;
         }
         boolean ownUpload = storedFile.getUploadedByUser().getId().equals(currentUser.getId());
+        String normalizedEmail = currentUser.getEmail().trim().toLowerCase(Locale.ROOT);
         boolean residentBilledMeterPhoto = electricityBillRepository.isReadingPhotoAccessibleToResident(
                 storedFile.getId(), ElectricityBillStatus.CANCELLED, currentUser.getId(),
-                userOrg.getId(), currentUser.getEmail().trim().toLowerCase(Locale.ROOT));
-        if (!ownUpload && !residentBilledMeterPhoto) {
+                userOrg.getId(), normalizedEmail);
+        boolean residentComplaintPhoto = complaintAttachmentRepository.isComplaintAttachmentAccessibleToMember(
+                storedFile.getId(), currentUser.getId());
+        boolean residentSharedDocument = documentRepository.isDocumentFileAccessibleToResident(
+                storedFile.getId(), currentUser.getId(), userOrg.getId(), normalizedEmail);
+        boolean orgAnnouncementAttachment = announcementRepository.existsByAttachmentFileIdAndOrganizationId(
+                storedFile.getId(), userOrg.getId());
+        if (!ownUpload && !residentBilledMeterPhoto && !residentComplaintPhoto
+                && !residentSharedDocument && !orgAnnouncementAttachment) {
             throw new ForbiddenException("You are not authorized to access this private file");
         }
     }

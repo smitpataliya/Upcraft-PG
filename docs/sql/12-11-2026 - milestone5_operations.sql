@@ -1,0 +1,17 @@
+-- Milestone 5 SQL Verification Notes (Applied via Flyway V13__milestone5_operations_tables.sql)
+-- Author: Upcraft Stay Platform
+-- Date: 12-11-2026
+--
+-- Tables evolved:
+--   complaints, announcements, meals, notifications
+-- Tables created:
+--   complaint_comments, complaint_attachments, announcement_reads,
+--   documents, manager_tasks, push_tokens, notification_preferences, notification_deliveries
+--
+-- Verification queries:
+--   SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;
+--   SHOW INDEX FROM complaints;
+--   SHOW INDEX FROM documents;
+--   SHOW INDEX FROM manager_tasks;
+--   SHOW INDEX FROM notification_deliveries;
+

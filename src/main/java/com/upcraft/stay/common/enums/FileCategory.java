@@ -6,6 +6,7 @@ package com.upcraft.stay.common.enums;
 public enum FileCategory {
     METER_PHOTO,
     COMPLAINT_PHOTO,
+    ANNOUNCEMENT_ATTACHMENT,
     TENANT_DOCUMENT,
     PROPERTY_DOCUMENT,
     RECEIPT,

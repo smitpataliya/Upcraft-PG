@@ -98,9 +98,9 @@ class FlywayMySqlIntegrationTest {
                 .load();
 
         var result = flyway.migrate();
-        assertThat(result.migrationsExecuted).isEqualTo(12);
+        assertThat(result.migrationsExecuted).isEqualTo(13);
         assertThat(readFlywayVersions(schemaJdbc)).containsExactly(
-                "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
+                "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"
         );
 
         verifyActiveGuardUniqueness(schemaJdbc);
@@ -123,9 +123,9 @@ class FlywayMySqlIntegrationTest {
                 .load();
 
         var result = flyway.migrate();
-        assertThat(result.migrationsExecuted).isEqualTo(11);
+        assertThat(result.migrationsExecuted).isEqualTo(12);
         assertThat(readFlywayVersions(schemaJdbc)).containsExactly(
-                "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"
+                "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"
         );
 
         // Running migrate again must execute 0 additional migrations and remain idempotent
