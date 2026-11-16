@@ -16,14 +16,15 @@ import com.upcraft.stay.domain.entity.Announcement;
 /**
  * Persistence access for legacy and v1 multi-property announcements.
  */
-public interface AnnouncementRepository extends JpaRepository<Announcement, UUID>, JpaSpecificationExecutor<Announcement> {
+public interface AnnouncementRepository
+        extends JpaRepository<Announcement, UUID>, JpaSpecificationExecutor<Announcement> {
 
     List<Announcement> findAllByOrderByPinnedDescCreatedAtDesc();
 
-    @EntityGraph(attributePaths = {"organization", "property", "attachmentFile"})
+    @EntityGraph(attributePaths = { "organization", "property", "attachmentFile" })
     Page<Announcement> findAll(Specification<Announcement> specification, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"organization", "property", "attachmentFile"})
+    @EntityGraph(attributePaths = { "organization", "property", "attachmentFile" })
     Optional<Announcement> findWithDetailsById(UUID id);
 
     boolean existsByAttachmentFileIdAndOrganizationId(UUID attachmentFileId, UUID organizationId);

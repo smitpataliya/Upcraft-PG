@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -17,6 +18,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.common.config.AppProperties;
 import com.upcraft.stay.common.dto.PageResponseDTO;
 import com.upcraft.stay.common.enums.MeterReadingStatus;
@@ -57,6 +62,7 @@ public class MeterReadingServiceImpl implements MeterReadingService {
     private final ElectricityCalculationHelper calculationHelper;
     private final ElectricityMapper electricityMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -188,6 +194,12 @@ public class MeterReadingServiceImpl implements MeterReadingService {
                 .ifPresent(extraNote -> reading.setNotes(extraNote.trim()));
 
         MeterReadingEntity saved = meterReadingRepository.save(reading);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), currentUser, principalEmail,
+                AuditAction.ELECTRICITY_READING_APPROVED, AuditEntityType.METER_READING, saved.getId(),
+                String.format("Approved meter %s reading (%s kWh)", saved.getMeter().getMeterNumber(), saved.getUnitsConsumed()),
+                Map.of("units", saved.getUnitsConsumed(), "totalAmount", saved.getTotalAmount())
+        ));
         log.info("Meter reading approved. readingId={}, approvedBy={}", saved.getId(), currentUser.getId());
         return electricityMapper.toMeterReadingResponseDTO(saved);
     }
@@ -213,6 +225,12 @@ public class MeterReadingServiceImpl implements MeterReadingService {
         reading.setApprovedAt(Instant.now());
 
         MeterReadingEntity saved = meterReadingRepository.save(reading);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), currentUser, principalEmail,
+                AuditAction.ELECTRICITY_READING_REJECTED, AuditEntityType.METER_READING, saved.getId(),
+                String.format("Rejected meter %s reading", saved.getMeter().getMeterNumber()),
+                Map.of("reason", saved.getRejectionReason())
+        ));
         log.info("Meter reading rejected. readingId={}", saved.getId());
         return electricityMapper.toMeterReadingResponseDTO(saved);
     }

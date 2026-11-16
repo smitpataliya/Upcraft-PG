@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.env*
+uploads/
+logs/
+docs/
+scripts/
+scratch/
+*.md
+*.log
+

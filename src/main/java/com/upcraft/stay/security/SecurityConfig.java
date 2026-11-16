@@ -62,7 +62,10 @@ public class SecurityConfig {
                                 "/api/v1/auth/verify-otp",
                                 "/api/v1/auth/reset-password",
                                 "/api/v1/invitations/verify",
-                                "/api/v1/invitations/accept")
+                                "/api/v1/invitations/accept",
+                                "/api/v1/public/share/**",
+                                "/actuator/health",
+                                "/actuator/health/**")
                         .permitAll()
 
                         // Super Admin endpoints

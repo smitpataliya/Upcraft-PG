@@ -1,0 +1,11 @@
+-- Milestone 6 SQL Verification Notes (Applied via Flyway V14__create_share_links_table.sql)
+-- Author: Upcraft Stay Platform
+-- Date: 12-11-2026
+--
+-- Table created:
+--   share_links
+--
+-- Verification queries:
+--   SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;
+--   SHOW INDEX FROM share_links;
+

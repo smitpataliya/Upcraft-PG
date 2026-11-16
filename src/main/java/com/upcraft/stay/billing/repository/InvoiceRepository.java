@@ -194,5 +194,89 @@ public interface InvoiceRepository extends JpaRepository<InvoiceEntity, UUID> {
     long countByOrganizationId(UUID organizationId);
 
     boolean existsByPropertyId(UUID propertyId);
+
+    @Query("""
+            SELECT inv.billingYear, inv.billingMonth,
+                   COALESCE(SUM(inv.paidAmount), 0),
+                   COALESCE(SUM(CASE WHEN inv.invoiceStatus IN :openStatuses THEN inv.balanceDue ELSE 0 END), 0)
+            FROM InvoiceEntity inv
+            WHERE inv.property.id IN :propertyIds
+              AND inv.invoiceStatus NOT IN :excludedStatuses
+            GROUP BY inv.billingYear, inv.billingMonth
+            ORDER BY inv.billingYear DESC, inv.billingMonth DESC
+            """)
+    List<Object[]> sumMonthlyCollectionAndOutstanding(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("excludedStatuses") Collection<InvoiceStatus> excludedStatuses,
+            @Param("openStatuses") Collection<InvoiceStatus> openStatuses
+    );
+
+    @Query("""
+            SELECT inv.invoiceStatus, COUNT(inv), COALESCE(SUM(inv.totalAmount), 0)
+            FROM InvoiceEntity inv
+            WHERE inv.property.id IN :propertyIds
+              AND (:hasYearFilter = false OR inv.billingYear = :billingYear)
+              AND (:hasMonthFilter = false OR inv.billingMonth = :billingMonth)
+            GROUP BY inv.invoiceStatus
+            """)
+    List<Object[]> sumInvoiceStatusBreakdown(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("hasYearFilter") boolean hasYearFilter,
+            @Param("billingYear") int billingYear,
+            @Param("hasMonthFilter") boolean hasMonthFilter,
+            @Param("billingMonth") int billingMonth
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(inv.balanceDue), 0)
+            FROM InvoiceEntity inv
+            WHERE inv.property.id IN :propertyIds
+              AND inv.invoiceType = :invoiceType
+              AND inv.invoiceStatus IN :openStatuses
+            """)
+    BigDecimal sumOutstandingByType(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("invoiceType") InvoiceType invoiceType,
+            @Param("openStatuses") Collection<InvoiceStatus> openStatuses
+    );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "room", "bed"})
+    @Query("""
+            SELECT inv FROM InvoiceEntity inv
+            WHERE inv.property.id IN :propertyIds
+              AND inv.invoiceStatus IN :statuses
+              AND (:openBalanceOnly = false OR inv.balanceDue > 0)
+              AND (:hasFromDate = false OR inv.issueDate >= :fromDate)
+              AND (:hasToDate = false OR inv.issueDate <= :toDate)
+            """)
+    Page<InvoiceEntity> findReportInvoices(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("statuses") Collection<InvoiceStatus> statuses,
+            @Param("openBalanceOnly") boolean openBalanceOnly,
+            @Param("hasFromDate") boolean hasFromDate,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("hasToDate") boolean hasToDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "room", "bed"})
+    @Query("""
+            SELECT inv FROM InvoiceEntity inv
+            JOIN inv.tenant t
+            WHERE (t.user.id = :userId
+                   OR (t.user IS NULL AND t.organization.id = :organizationId AND LOWER(COALESCE(t.email, '')) = :email))
+              AND (
+                  LOWER(inv.invoiceNumber) LIKE :pattern
+                  OR LOWER(CAST(inv.invoiceType AS string)) LIKE :pattern
+              )
+            """)
+    Page<InvoiceEntity> searchSelfInvoices(
+            @Param("userId") UUID userId,
+            @Param("organizationId") UUID organizationId,
+            @Param("email") String email,
+            @Param("pattern") String pattern,
+            Pageable pageable
+    );
 }
 

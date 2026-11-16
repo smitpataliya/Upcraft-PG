@@ -53,6 +53,14 @@ public interface BedRepository extends JpaRepository<BedEntity, UUID> {
 
     long countByRoomIdAndBedStatus(UUID roomId, BedStatus bedStatus);
 
+    @Query("""
+            SELECT b.property.id, b.property.name, b.bedStatus, COUNT(b)
+            FROM BedEntity b
+            WHERE b.property.id IN :propertyIds
+            GROUP BY b.property.id, b.property.name, b.bedStatus
+            """)
+    List<Object[]> countBedsGroupedByPropertyAndStatus(@Param("propertyIds") Collection<UUID> propertyIds);
+
     @EntityGraph(attributePaths = {"room", "property", "room.floorEntity"})
     @Query("""
             SELECT b FROM BedEntity b
@@ -75,6 +83,25 @@ public interface BedRepository extends JpaRepository<BedEntity, UUID> {
             @Param("maxRent") BigDecimal maxRent,
             @Param("hasAvailableBeforeFilter") boolean hasAvailableBeforeFilter,
             @Param("availableBefore") LocalDate availableBefore,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"room", "property"})
+    @Query("""
+            SELECT b FROM BedEntity b
+            JOIN b.room r
+            JOIN b.property p
+            WHERE p.id IN :propertyIds
+              AND (
+                  LOWER(b.bedCode) LIKE :pattern
+                  OR LOWER(r.number) LIKE :pattern
+                  OR LOWER(r.roomType) LIKE :pattern
+                  OR LOWER(p.name) LIKE :pattern
+              )
+            """)
+    Page<BedEntity> searchAccessibleBeds(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("pattern") String pattern,
             Pageable pageable
     );
 }

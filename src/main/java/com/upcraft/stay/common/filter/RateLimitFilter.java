@@ -2,6 +2,7 @@ package com.upcraft.stay.common.filter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -12,7 +13,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -29,7 +29,8 @@ import com.upcraft.stay.common.dto.ApiResponseDTO;
 import com.upcraft.stay.common.enums.ErrorCode;
 
 /**
- * Bounded per-IP sliding-minute rate limiter protecting authentication and OTP endpoints.
+ * Instance-local bounded Caffeine sliding-minute rate limiter protecting authentication,
+ * public share links, file uploads, and export endpoints.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 1)
@@ -37,7 +38,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final long WINDOW_SECONDS = 60L;
     private static final long MAX_TRACKED_KEYS = 10_000L;
-    private static final Set<String> PROTECTED_PREFIXES = Set.of(
+    private static final Set<String> AUTH_PREFIXES = Set.of(
             "/api/v1/auth/login",
             "/api/v1/auth/register",
             "/api/v1/auth/forgot-password",
@@ -74,8 +75,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        String path = request.getRequestURI();
-        return PROTECTED_PREFIXES.stream().noneMatch(path::startsWith);
+        return resolveBucket(request.getRequestURI()).isEmpty();
     }
 
     @Override
@@ -84,23 +84,36 @@ public class RateLimitFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        String key = resolveClientKey(request) + ":" + request.getRequestURI();
+        Optional<RateBucket> bucketOpt = resolveBucket(request.getRequestURI());
+        if (bucketOpt.isEmpty()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        RateBucket bucket = bucketOpt.get();
+        String clientIp = TrustedProxyIpResolver.resolveClientIp(request, appProperties.getRateLimit().getTrustedProxies());
+        String key = String.format("%s:%s:%s", bucket.name(), clientIp, request.getRequestURI());
         AtomicInteger counter = requestCounts.get(key, ignoredKey -> new AtomicInteger(0));
-        int currentCount = counter.incrementAndGet();
-        int maxAllowed = Math.max(1, appProperties.getRateLimit().getAuthRequestsPerMinute());
-        if (currentCount > maxAllowed) {
+        if (counter.incrementAndGet() > Math.max(1, bucket.limitPerMinute())) {
             writeTooManyRequests(response);
             return;
         }
         filterChain.doFilter(request, response);
     }
 
-    private String resolveClientKey(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.isNotBlank(forwardedFor)) {
-            return StringUtils.substringBefore(forwardedFor, ",").trim();
+    private Optional<RateBucket> resolveBucket(String path) {
+        if (AUTH_PREFIXES.stream().anyMatch(path::startsWith)) {
+            return Optional.of(new RateBucket("AUTH", appProperties.getRateLimit().getAuthRequestsPerMinute()));
         }
-        return StringUtils.defaultIfBlank(request.getRemoteAddr(), "unknown");
+        if (path.startsWith("/api/v1/public/share")) {
+            return Optional.of(new RateBucket("PUBLIC_SHARE", appProperties.getRateLimit().getPublicShareRequestsPerMinute()));
+        }
+        if (path.startsWith("/api/v1/files/upload")) {
+            return Optional.of(new RateBucket("UPLOAD", appProperties.getRateLimit().getUploadRequestsPerMinute()));
+        }
+        if (path.startsWith("/api/v1/share-links") || (path.startsWith("/api/v1/reports/") && path.endsWith("/export"))) {
+            return Optional.of(new RateBucket("SENSITIVE", appProperties.getRateLimit().getExportRequestsPerMinute()));
+        }
+        return Optional.empty();
     }
 
     private void writeTooManyRequests(HttpServletResponse response) throws IOException {
@@ -114,5 +127,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setHeader("Retry-After", String.valueOf(WINDOW_SECONDS));
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), body);
+    }
+
+    private record RateBucket(String name, int limitPerMinute) {
     }
 }

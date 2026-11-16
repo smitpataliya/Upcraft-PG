@@ -1,5 +1,6 @@
 package com.upcraft.stay.electricity.repository;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -78,6 +79,37 @@ public interface ElectricityBillRepository extends JpaRepository<ElectricityBill
             @Param("userId") UUID userId,
             @Param("organizationId") UUID organizationId,
             @Param("email") String email,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT eb.billingYear, eb.billingMonth,
+                   COALESCE(SUM(eb.unitsAllocated), 0),
+                   COALESCE(SUM(eb.totalAmount), 0)
+            FROM ElectricityBillEntity eb
+            WHERE eb.property.id IN :propertyIds
+              AND eb.billStatus <> :excludedStatus
+            GROUP BY eb.billingYear, eb.billingMonth
+            ORDER BY eb.billingYear DESC, eb.billingMonth DESC
+            """)
+    List<Object[]> sumMonthlyConsumption(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("excludedStatus") ElectricityBillStatus excludedStatus
+    );
+
+    @EntityGraph(attributePaths = {"property", "meter", "reading", "tenant", "room", "bed", "invoice"})
+    @Query("""
+            SELECT eb FROM ElectricityBillEntity eb
+            WHERE eb.property.id IN :propertyIds
+              AND (:hasFromInstant = false OR eb.createdAt >= :fromInstant)
+              AND (:hasToInstant = false OR eb.createdAt <= :toInstant)
+            """)
+    Page<ElectricityBillEntity> findReportElectricityBills(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("hasFromInstant") boolean hasFromInstant,
+            @Param("fromInstant") Instant fromInstant,
+            @Param("hasToInstant") boolean hasToInstant,
+            @Param("toInstant") Instant toInstant,
             Pageable pageable
     );
 }

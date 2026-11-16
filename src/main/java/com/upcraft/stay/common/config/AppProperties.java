@@ -26,6 +26,8 @@ public class AppProperties {
     private Storage storage = new Storage();
     private Electricity electricity = new Electricity();
     private Notifications notifications = new Notifications();
+    private Reports reports = new Reports();
+    private Share share = new Share();
 
     @Getter
     @Setter
@@ -38,6 +40,13 @@ public class AppProperties {
     @Setter
     public static class RateLimit {
         private int authRequestsPerMinute = 30;
+        private int publicShareRequestsPerMinute = 60;
+        private int uploadRequestsPerMinute = 20;
+        private int exportRequestsPerMinute = 30;
+        private List<String> trustedProxies = List.of(
+                "127.0.0.1", "::1", "0:0:0:0:0:0:0:1",
+                "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"
+        );
     }
 
     @Getter
@@ -102,6 +111,21 @@ public class AppProperties {
         private int asyncCorePoolSize = 4;
         private int asyncMaxPoolSize = 16;
         private int asyncQueueCapacity = 200;
+    }
+
+    @Getter
+    @Setter
+    public static class Reports {
+        private int maxExportRows = 2000;
+        private int dashboardCacheSeconds = 30;
+    }
+
+    @Getter
+    @Setter
+    public static class Share {
+        private int defaultExpiryHours = 72;
+        private int maxExpiryHours = 168;
+        private String publicBaseUrl = "http://localhost:3000/share";
     }
 }
 

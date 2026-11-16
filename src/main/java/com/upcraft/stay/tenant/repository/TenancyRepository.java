@@ -97,4 +97,24 @@ public interface TenancyRepository extends JpaRepository<TenancyEntity, UUID> {
             @Param("periodStart") LocalDate periodStart,
             @Param("periodEnd") LocalDate periodEnd
     );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "room", "bed"})
+    @Query("""
+            SELECT tn FROM TenancyEntity tn
+            WHERE tn.property.id IN :propertyIds
+              AND (:hasFromDate = false
+                   OR tn.moveInDate >= :fromDate
+                   OR (tn.actualMoveOutDate IS NOT NULL AND tn.actualMoveOutDate >= :fromDate))
+              AND (:hasToDate = false
+                   OR tn.moveInDate <= :toDate
+                   OR (tn.actualMoveOutDate IS NOT NULL AND tn.actualMoveOutDate <= :toDate))
+            """)
+    Page<TenancyEntity> findReportMoveInOut(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("hasFromDate") boolean hasFromDate,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("hasToDate") boolean hasToDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable
+    );
 }

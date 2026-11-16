@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.auth.dto.AuthTokenResponseDTO;
 import com.upcraft.stay.auth.dto.AuthenticatedUserDTO;
 import com.upcraft.stay.auth.dto.LoginRequestDTO;
@@ -69,6 +70,9 @@ class AuthV1ServiceImplTest {
     @Mock
     private OtpService otpService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private AppProperties appProperties;
     private AuthV1ServiceImpl authV1Service;
 
@@ -85,7 +89,8 @@ class AuthV1ServiceImplTest {
                 jwtTokenFactory,
                 accessGuardService,
                 otpService,
-                appProperties
+                appProperties,
+                auditLogService
         );
     }
 

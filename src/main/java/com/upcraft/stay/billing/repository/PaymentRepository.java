@@ -1,5 +1,6 @@
 package com.upcraft.stay.billing.repository;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -59,5 +60,62 @@ public interface PaymentRepository extends JpaRepository<PaymentEntity, UUID> {
     );
 
     long countByOrganizationId(UUID organizationId);
+
+    @EntityGraph(attributePaths = {"property", "tenant", "invoice", "recordedByUser"})
+    @Query("""
+            SELECT pay FROM PaymentEntity pay
+            WHERE pay.property.id IN :propertyIds
+              AND (:hasFromInstant = false OR pay.paidAt >= :fromInstant)
+              AND (:hasToInstant = false OR pay.paidAt <= :toInstant)
+            """)
+    Page<PaymentEntity> findReportPayments(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("hasFromInstant") boolean hasFromInstant,
+            @Param("fromInstant") Instant fromInstant,
+            @Param("hasToInstant") boolean hasToInstant,
+            @Param("toInstant") Instant toInstant,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "invoice"})
+    @Query("""
+            SELECT pay FROM PaymentEntity pay
+            JOIN pay.property p
+            JOIN pay.tenant t
+            JOIN pay.invoice inv
+            WHERE p.id IN :propertyIds
+              AND (
+                  LOWER(pay.receiptNumber) LIKE :pattern
+                  OR LOWER(COALESCE(pay.referenceNumber, '')) LIKE :pattern
+                  OR LOWER(t.fullName) LIKE :pattern
+                  OR LOWER(inv.invoiceNumber) LIKE :pattern
+              )
+            """)
+    Page<PaymentEntity> searchAccessiblePayments(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("pattern") String pattern,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "invoice"})
+    @Query("""
+            SELECT pay FROM PaymentEntity pay
+            JOIN pay.tenant t
+            JOIN pay.invoice inv
+            WHERE (t.user.id = :userId
+                   OR (t.user IS NULL AND t.organization.id = :organizationId AND LOWER(COALESCE(t.email, '')) = :email))
+              AND (
+                  LOWER(pay.receiptNumber) LIKE :pattern
+                  OR LOWER(COALESCE(pay.referenceNumber, '')) LIKE :pattern
+                  OR LOWER(inv.invoiceNumber) LIKE :pattern
+              )
+            """)
+    Page<PaymentEntity> searchSelfPayments(
+            @Param("userId") UUID userId,
+            @Param("organizationId") UUID organizationId,
+            @Param("email") String email,
+            @Param("pattern") String pattern,
+            Pageable pageable
+    );
 }
 

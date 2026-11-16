@@ -27,6 +27,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.billing.dto.CreateCustomInvoiceRequestDTO;
 import com.upcraft.stay.billing.dto.CustomInvoiceLineItemRequestDTO;
 import com.upcraft.stay.billing.dto.GenerateInvoicesRequestDTO;
@@ -85,6 +89,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceGenerationHelper generationHelper;
     private final BillingMapper billingMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -120,7 +125,25 @@ public class InvoiceServiceImpl implements InvoiceService {
                 InvoiceType.MONTHLY_RENT, InvoiceStatus.CANCELLED
         ));
 
-        return persistBatchForUnbilledTenancies(billableTenancies, alreadyBilled, billingPeriod, generateRequestDTO);
+        GenerateInvoicesResultResponseDTO generated = persistBatchForUnbilledTenancies(
+                billableTenancies, alreadyBilled, billingPeriod, generateRequestDTO
+        );
+        if (generated.generatedCount() > 0) {
+            TenancyEntity sampleTenancy = billableTenancies.get(0);
+            auditLogService.recordEvent(new AuditLogCommand(
+                    sampleTenancy.getOrganization(),
+                    Optional.ofNullable(generateRequestDTO.propertyId()).map(id -> sampleTenancy.getProperty()).orElse(null),
+                    currentUser,
+                    principalEmail,
+                    AuditAction.INVOICE_GENERATED,
+                    AuditEntityType.INVOICE,
+                    sampleTenancy.getProperty().getId(),
+                    String.format("Generated %d rent invoices for %d-%02d",
+                            generated.generatedCount(), billingPeriod.getYear(), billingPeriod.getMonthValue()),
+                    Map.of("generatedCount", generated.generatedCount(), "skipped", generated.skippedAlreadyBilledCount())
+            ));
+        }
+        return generated;
     }
 
     @Override
@@ -257,6 +280,12 @@ public class InvoiceServiceImpl implements InvoiceService {
         invoice.setBalanceDue(BigDecimal.ZERO);
         invoice.setStatusReason(updateStatusRequestDTO.reason().trim());
         InvoiceEntity saved = invoiceRepository.save(invoice);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), currentUser, principalEmail,
+                AuditAction.INVOICE_STATUS_UPDATED, AuditEntityType.INVOICE, saved.getId(),
+                String.format("Updated invoice %s status to %s", saved.getInvoiceNumber(), targetStatus),
+                Map.of("invoiceNumber", saved.getInvoiceNumber(), "status", targetStatus.name())
+        ));
         List<InvoiceItemEntity> items = invoiceItemRepository.findAllByInvoiceIdOrderBySortOrderAsc(invoiceId);
         return assembleDetail(saved, items);
     }

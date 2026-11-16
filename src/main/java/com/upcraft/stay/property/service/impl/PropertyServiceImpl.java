@@ -2,6 +2,7 @@ package com.upcraft.stay.property.service.impl;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -15,6 +16,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.common.config.AppProperties;
 import com.upcraft.stay.common.constants.AppConstants;
 import com.upcraft.stay.common.dto.PageResponseDTO;
@@ -66,6 +71,7 @@ public class PropertyServiceImpl implements PropertyService {
     private final TenancyRepository tenancyRepository;
     private final PropertyMapper propertyMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -141,6 +147,12 @@ public class PropertyServiceImpl implements PropertyService {
 
         PropertyEntity propertyEntity = buildPropertyEntity(createPropertyRequestDTO, organizationEntity, cleanName);
         PropertyEntity savedProperty = propertyRepository.save(propertyEntity);
+        auditLogService.recordEvent(new AuditLogCommand(
+                organizationEntity, savedProperty, currentUser, principalEmail,
+                AuditAction.PROPERTY_CREATED, AuditEntityType.PROPERTY, savedProperty.getId(),
+                "Created property " + savedProperty.getName(),
+                Map.of("city", savedProperty.getCity(), "propertyType", savedProperty.getPropertyType().name())
+        ));
         log.info("Property created. propertyId={}, organizationId={}", savedProperty.getId(), organizationEntity.getId());
         return propertyMapper.toPropertySummaryResponseDTO(savedProperty);
     }
@@ -185,6 +197,12 @@ public class PropertyServiceImpl implements PropertyService {
         }
         propertyEntity.setPropertyStatus(PropertyStatus.ARCHIVED);
         PropertyEntity archivedProperty = propertyRepository.save(propertyEntity);
+        auditLogService.recordEvent(new AuditLogCommand(
+                archivedProperty.getOrganization(), archivedProperty, currentUser, principalEmail,
+                AuditAction.PROPERTY_ARCHIVED, AuditEntityType.PROPERTY, archivedProperty.getId(),
+                "Archived property " + archivedProperty.getName(),
+                Map.of("status", PropertyStatus.ARCHIVED.name())
+        ));
         log.info("Property archived. propertyId={}, userId={}", propertyId, currentUser.getId());
         return propertyMapper.toPropertySummaryResponseDTO(archivedProperty);
     }

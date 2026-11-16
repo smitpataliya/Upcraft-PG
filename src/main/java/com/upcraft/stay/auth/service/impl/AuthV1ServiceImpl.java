@@ -1,6 +1,7 @@
 package com.upcraft.stay.auth.service.impl;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -9,9 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 
 import com.upcraft.stay.auth.dto.AuthTokenResponseDTO;
 import com.upcraft.stay.auth.dto.AuthenticatedUserDTO;
@@ -59,6 +66,7 @@ public class AuthV1ServiceImpl implements AuthV1Service {
     private final AccessGuardService accessGuardService;
     private final OtpService otpService;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -71,7 +79,18 @@ public class AuthV1ServiceImpl implements AuthV1Service {
         User ownerUser = createOwnerUser(registerOwnerRequestDTO, normalizedEmail);
         OrganizationEntity organizationEntity = createOrganization(registerOwnerRequestDTO, ownerUser);
         createOwnerMembership(organizationEntity, ownerUser);
-        createInitialProperty(registerOwnerRequestDTO, organizationEntity);
+        PropertyEntity initialProperty = createInitialProperty(registerOwnerRequestDTO, organizationEntity);
+        auditLogService.recordEvent(new AuditLogCommand(
+                organizationEntity,
+                initialProperty,
+                ownerUser,
+                normalizedEmail,
+                AuditAction.USER_REGISTERED,
+                AuditEntityType.USER,
+                ownerUser.getId(),
+                "Registered owner organization " + organizationEntity.getName(),
+                Map.of("role", ownerUser.getRole().name())
+        ));
 
         log.info("Registered new PG owner organization. userId={}, organizationId={}",
                 ownerUser.getId(), organizationEntity.getId());
@@ -79,17 +98,57 @@ public class AuthV1ServiceImpl implements AuthV1Service {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthTokenResponseDTO login(LoginRequestDTO loginRequestDTO) {
         String identifier = loginRequestDTO.email().trim().toLowerCase(Locale.ROOT);
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(identifier, loginRequestDTO.password()));
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(identifier, loginRequestDTO.password()));
+        } catch (AuthenticationException exception) {
+            recordFailedLoginAudit(identifier);
+            throw exception;
+        }
 
         User userEntity = userRepository.findByEmailOrUsername(identifier, identifier)
                 .filter(User::isActive)
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials or inactive account"));
 
+        auditLogService.recordEvent(new AuditLogCommand(
+                safeResolveOrganization(userEntity),
+                null,
+                userEntity,
+                userEntity.getEmail(),
+                AuditAction.LOGIN_SUCCESS,
+                AuditEntityType.USER,
+                userEntity.getId(),
+                "Successful password login",
+                Map.of("role", userEntity.getRole().name())
+        ));
         return issueTokenResponse(userEntity);
+    }
+
+    private void recordFailedLoginAudit(String identifier) {
+        Optional<User> existingUser = userRepository.findByEmailOrUsername(identifier, identifier);
+        OrganizationEntity organizationEntity = existingUser.map(this::safeResolveOrganization).orElse(null);
+        auditLogService.recordIndependentEvent(new AuditLogCommand(
+                organizationEntity,
+                null,
+                existingUser.orElse(null),
+                identifier,
+                AuditAction.LOGIN_FAILED,
+                AuditEntityType.USER,
+                existingUser.map(User::getId).orElse(null),
+                "Failed login attempt",
+                Map.of("reason", "INVALID_CREDENTIALS")
+        ));
+    }
+
+    private OrganizationEntity safeResolveOrganization(User userEntity) {
+        try {
+            return accessGuardService.resolveUserOrganization(userEntity);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     @Override
@@ -159,7 +218,7 @@ public class AuthV1ServiceImpl implements AuthV1Service {
         organizationMemberRepository.save(memberEntity);
     }
 
-    private void createInitialProperty(RegisterOwnerRequestDTO requestDTO, OrganizationEntity organizationEntity) {
+    private PropertyEntity createInitialProperty(RegisterOwnerRequestDTO requestDTO, OrganizationEntity organizationEntity) {
         PropertyEntity propertyEntity = new PropertyEntity();
         propertyEntity.setOrganization(organizationEntity);
         propertyEntity.setName(requestDTO.propertyName().trim());
@@ -173,7 +232,7 @@ public class AuthV1ServiceImpl implements AuthV1Service {
         propertyEntity.setContactEmail(organizationEntity.getContactEmail());
         propertyEntity.setContactPhone(organizationEntity.getContactPhone());
         propertyEntity.setPropertyStatus(PropertyStatus.ACTIVE);
-        propertyRepository.save(propertyEntity);
+        return propertyRepository.save(propertyEntity);
     }
 
     private String generateUniqueSlug(String rawName) {

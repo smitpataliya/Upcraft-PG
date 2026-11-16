@@ -21,6 +21,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.common.config.AppProperties;
 import com.upcraft.stay.common.constants.AppConstants;
 import com.upcraft.stay.common.dto.PageResponseDTO;
@@ -84,6 +88,7 @@ public class ComplaintV1ServiceImpl implements ComplaintV1Service {
     private final NotificationDispatchService notificationDispatchService;
     private final OperationsMapper operationsMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -163,6 +168,12 @@ public class ComplaintV1ServiceImpl implements ComplaintV1Service {
                 .build());
 
         Complaint saved = complaintRepository.save(complaint);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), member, principalEmail,
+                AuditAction.COMPLAINT_STATUS_UPDATED, AuditEntityType.COMPLAINT, saved.getId(),
+                String.format("Submitted complaint: %s", saved.getTitle()),
+                Map.of("status", saved.getStatus().name(), "priority", saved.getPriority().name())
+        ));
         saveAttachments(organization, saved, null, request.attachmentFileIds(), member);
         notifyPropertyStaff(organization, saved.getProperty(), saved, "New Complaint: " + saved.getTitle());
         return operationsMapper.toComplaintResponse(saved);
@@ -234,6 +245,12 @@ public class ComplaintV1ServiceImpl implements ComplaintV1Service {
                 .build());
 
         Complaint saved = complaintRepository.save(complaint);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), currentUser, principalEmail,
+                AuditAction.COMPLAINT_STATUS_UPDATED, AuditEntityType.COMPLAINT, saved.getId(),
+                String.format("Updated complaint status to %s", saved.getStatus()),
+                Map.of("status", saved.getStatus().name(), "priority", saved.getPriority().name())
+        ));
         if (currentUser.getRole() != Role.PG_MEMBER) {
             notificationDispatchService.dispatchToUsers(
                     saved.getOrganization(), saved.getProperty(), List.of(saved.getMember()),
@@ -285,6 +302,12 @@ public class ComplaintV1ServiceImpl implements ComplaintV1Service {
                 .build());
 
         Complaint saved = complaintRepository.save(complaint);
+        auditLogService.recordEvent(new AuditLogCommand(
+                saved.getOrganization(), saved.getProperty(), currentUser, principalEmail,
+                AuditAction.COMPLAINT_STATUS_UPDATED, AuditEntityType.COMPLAINT, saved.getId(),
+                String.format("Updated complaint status to %s", saved.getStatus()),
+                Map.of("status", saved.getStatus().name(), "priority", saved.getPriority().name())
+        ));
         notificationDispatchService.dispatchToUsers(
                 saved.getOrganization(), saved.getProperty(), List.of(assignee, saved.getMember()),
                 NotificationEventType.COMPLAINT_UPDATED,

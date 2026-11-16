@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.billing.service.DepositService;
 import com.upcraft.stay.common.config.AppProperties;
 import com.upcraft.stay.common.enums.BedStatus;
@@ -77,6 +78,9 @@ class TenancyServiceImplTest {
     @Mock
     private DepositService depositService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private TenancyServiceImpl tenancyService;
 
     @BeforeEach
@@ -130,7 +134,8 @@ class TenancyServiceImplTest {
                 bedMapper,
                 manualMapper,
                 depositService,
-                new AppProperties()
+                new AppProperties(),
+                auditLogService
         );
     }
 

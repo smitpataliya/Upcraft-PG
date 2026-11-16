@@ -1,6 +1,7 @@
 package com.upcraft.stay.billing.repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -41,5 +42,21 @@ public interface DepositTransactionRepository extends JpaRepository<DepositTrans
     BigDecimal sumByPropertyIdsAndType(
             @Param("propertyIds") Collection<UUID> propertyIds,
             @Param("transactionType") DepositTransactionType transactionType
+    );
+
+    @EntityGraph(attributePaths = {"property", "tenant", "tenancy", "recordedByUser"})
+    @Query("""
+            SELECT dt FROM DepositTransactionEntity dt
+            WHERE dt.property.id IN :propertyIds
+              AND (:hasFromDate = false OR dt.transactionDate >= :fromDate)
+              AND (:hasToDate = false OR dt.transactionDate <= :toDate)
+            """)
+    Page<DepositTransactionEntity> findAccessibleDepositReport(
+            @Param("propertyIds") Collection<UUID> propertyIds,
+            @Param("hasFromDate") boolean hasFromDate,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("hasToDate") boolean hasToDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable
     );
 }

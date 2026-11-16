@@ -1,6 +1,7 @@
 package com.upcraft.stay.tenant.service.impl;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -14,6 +15,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.billing.service.DepositService;
 import com.upcraft.stay.common.config.AppProperties;
 import com.upcraft.stay.common.dto.PageResponseDTO;
@@ -59,6 +64,7 @@ public class TenancyServiceImpl implements TenancyService {
     private final TenancyMapper tenancyMapper;
     private final DepositService depositService;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -138,6 +144,12 @@ public class TenancyServiceImpl implements TenancyService {
         depositService.recordInitialDepositOnMoveIn(savedTenancy, currentUser);
         lifecycleHelper.markBedOccupiedAndSyncRoom(bedEntity, tenantEntity, moveInRequestDTO.moveInDate());
         lifecycleHelper.sendOptionalPortalInvite(principalEmail, propertyEntity, tenantEntity, moveInRequestDTO);
+        auditLogService.recordEvent(new AuditLogCommand(
+                propertyEntity.getOrganization(), propertyEntity, currentUser, principalEmail,
+                AuditAction.TENANCY_MOVE_IN, AuditEntityType.TENANCY, savedTenancy.getId(),
+                String.format("Tenant moved into bed %s", bedEntity.getBedCode()),
+                Map.of("bedCode", bedEntity.getBedCode(), "monthlyRent", savedTenancy.getAgreedMonthlyRent())
+        ));
 
         log.info("Tenant moved in. tenancyId={}, tenantId={}, bedId={}",
                 savedTenancy.getId(), tenantEntity.getId(), bedEntity.getId());
@@ -179,6 +191,12 @@ public class TenancyServiceImpl implements TenancyService {
         lifecycleHelper.markBedOccupiedAndSyncRoom(
                 targetBed, currentTenancy.getTenant(), transferBedRequestDTO.transferDate()
         );
+        auditLogService.recordEvent(new AuditLogCommand(
+                targetProperty.getOrganization(), targetProperty, currentUser, principalEmail,
+                AuditAction.TENANCY_TRANSFER, AuditEntityType.TENANCY, nextTenancy.getId(),
+                String.format("Bed transferred from %s to %s", sourceBed.getBedCode(), targetBed.getBedCode()),
+                Map.of("fromBed", sourceBed.getBedCode(), "toBed", targetBed.getBedCode())
+        ));
 
         log.info("Tenancy bed transferred. fromTenancyId={}, toTenancyId={}, targetBedId={}",
                 currentTenancy.getId(), nextTenancy.getId(), targetBed.getId());
@@ -218,6 +236,12 @@ public class TenancyServiceImpl implements TenancyService {
                 moveOutRequestDTO.actualMoveOutDate()
         );
         lifecycleHelper.releaseBedAndSyncTenant(tenancyEntity, targetBedStatus, moveOutRequestDTO.actualMoveOutDate());
+        auditLogService.recordEvent(new AuditLogCommand(
+                savedTenancy.getOrganization(), savedTenancy.getProperty(), currentUser, principalEmail,
+                AuditAction.TENANCY_MOVE_OUT, AuditEntityType.TENANCY, savedTenancy.getId(),
+                String.format("Tenant moved out from bed %s", savedTenancy.getBed().getBedCode()),
+                Map.of("releasedStatus", targetBedStatus.name(), "refundableDeposit", savedTenancy.getRefundableDepositAmount())
+        ));
 
         log.info("Tenant moved out. tenancyId={}, bedId={}, refundableDeposit={}",
                 savedTenancy.getId(), tenancyEntity.getBed().getId(), savedTenancy.getRefundableDepositAmount());

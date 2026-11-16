@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -19,6 +20,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.billing.dto.FinancialSummaryResponseDTO;
 import com.upcraft.stay.billing.dto.PaymentReceiptResponseDTO;
 import com.upcraft.stay.billing.dto.PaymentResponseDTO;
@@ -83,6 +88,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final TenantLedgerBuilder tenantLedgerBuilder;
     private final BillingMapper billingMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -158,6 +164,12 @@ public class PaymentServiceImpl implements PaymentService {
         List<PaymentEntity> invoicePayments = paymentRepository.findAllByInvoiceIdOrderByPaidAtDescCreatedAtDesc(invoiceId);
         settlementHelper.recomputeInvoiceFromPayments(invoice, invoicePayments, generationHelper);
         invoiceRepository.save(invoice);
+        auditLogService.recordEvent(new AuditLogCommand(
+                invoice.getOrganization(), invoice.getProperty(), currentUser, principalEmail,
+                AuditAction.PAYMENT_RECORDED, AuditEntityType.PAYMENT, savedPayment.getId(),
+                String.format("Recorded %s payment %s for invoice %s", savedPayment.getPaymentMethod(), savedPayment.getReceiptNumber(), invoice.getInvoiceNumber()),
+                Map.of("amount", savedPayment.getAmount(), "method", savedPayment.getPaymentMethod().name(), "invoiceNumber", invoice.getInvoiceNumber())
+        ));
 
         log.info("Payment recorded. paymentId={}, invoiceId={}, amount={}",
                 savedPayment.getId(), invoiceId, savedPayment.getAmount());
@@ -200,6 +212,12 @@ public class PaymentServiceImpl implements PaymentService {
                 paymentRepository.findAllByInvoiceIdOrderByPaidAtDescCreatedAtDesc(invoice.getId());
         settlementHelper.recomputeInvoiceFromPayments(invoice, invoicePayments, generationHelper);
         invoiceRepository.save(invoice);
+        auditLogService.recordEvent(new AuditLogCommand(
+                payment.getOrganization(), payment.getProperty(), currentUser, principalEmail,
+                AuditAction.PAYMENT_REVERSED, AuditEntityType.PAYMENT, updatedPayment.getId(),
+                String.format("Reversed payment %s on invoice %s", updatedPayment.getReceiptNumber(), invoice.getInvoiceNumber()),
+                Map.of("amount", updatedPayment.getAmount(), "reason", reversePaymentRequestDTO.reason().trim())
+        ));
 
         log.info("Payment reversed. paymentId={}, invoiceId={}", paymentId, invoice.getId());
         return billingMapper.toPaymentResponseDTO(updatedPayment);

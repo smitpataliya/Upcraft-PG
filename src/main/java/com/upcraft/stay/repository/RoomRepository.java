@@ -1,5 +1,6 @@
 package com.upcraft.stay.repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +31,8 @@ public interface RoomRepository extends JpaRepository<Room, UUID> {
     boolean existsByPropertyIdAndNumberIgnoreCaseAndIdNot(UUID propertyId, String number, UUID id);
 
     long countByPropertyId(UUID propertyId);
+
+    long countByPropertyIdIn(Collection<UUID> propertyIds);
 
     long countByFloorEntityId(UUID floorId);
 }

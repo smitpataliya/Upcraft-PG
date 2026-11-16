@@ -16,25 +16,23 @@ import com.upcraft.stay.domain.entity.Meal;
  */
 public interface MealRepository extends JpaRepository<Meal, UUID> {
 
-    List<Meal> findByDateScheduledAndAvailableTrue(LocalDate date);
+        List<Meal> findByDateScheduledAndAvailableTrue(LocalDate date);
 
-    List<Meal> findByDateScheduledBetweenAndAvailableTrue(LocalDate start, LocalDate end);
+        List<Meal> findByDateScheduledBetweenAndAvailableTrue(LocalDate start, LocalDate end);
 
-    @EntityGraph(attributePaths = {"organization", "property"})
-    List<Meal> findAllByOrganizationIdAndPropertyIdInAndDateScheduledBetweenOrderByDateScheduledAscTypeAsc(
-            UUID organizationId,
-            Collection<UUID> propertyIds,
-            LocalDate startDate,
-            LocalDate endDate
-    );
+        @EntityGraph(attributePaths = { "organization", "property" })
+        List<Meal> findAllByOrganizationIdAndPropertyIdInAndDateScheduledBetweenOrderByDateScheduledAscTypeAsc(
+                        UUID organizationId,
+                        Collection<UUID> propertyIds,
+                        LocalDate startDate,
+                        LocalDate endDate);
 
-    @EntityGraph(attributePaths = {"organization", "property"})
-    List<Meal> findAllByOrganizationIdAndDateScheduledBetweenOrderByDateScheduledAscTypeAsc(
-            UUID organizationId,
-            LocalDate startDate,
-            LocalDate endDate
-    );
+        @EntityGraph(attributePaths = { "organization", "property" })
+        List<Meal> findAllByOrganizationIdAndDateScheduledBetweenOrderByDateScheduledAscTypeAsc(
+                        UUID organizationId,
+                        LocalDate startDate,
+                        LocalDate endDate);
 
-    @EntityGraph(attributePaths = {"organization", "property"})
-    Optional<Meal> findWithDetailsById(UUID id);
+        @EntityGraph(attributePaths = { "organization", "property" })
+        Optional<Meal> findWithDetailsById(UUID id);
 }

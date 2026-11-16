@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -17,6 +18,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.upcraft.stay.audit.dto.AuditLogCommand;
+import com.upcraft.stay.audit.enums.AuditAction;
+import com.upcraft.stay.audit.enums.AuditEntityType;
+import com.upcraft.stay.audit.service.AuditLogService;
 import com.upcraft.stay.billing.dto.DepositAccountSummaryResponseDTO;
 import com.upcraft.stay.billing.dto.DepositTransactionResponseDTO;
 import com.upcraft.stay.billing.dto.RecordDepositTransactionRequestDTO;
@@ -54,6 +59,7 @@ public class DepositServiceImpl implements DepositService {
     private final DepositTransactionRepository depositTransactionRepository;
     private final BillingMapper billingMapper;
     private final AppProperties appProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -112,6 +118,12 @@ public class DepositServiceImpl implements DepositService {
                 requestDTO.reason().trim()
         );
         syncTenancyDepositTotals(tenancyEntity);
+        auditLogService.recordEvent(new AuditLogCommand(
+                tenancyEntity.getOrganization(), tenancyEntity.getProperty(), currentUser, principalEmail,
+                AuditAction.DEPOSIT_TRANSACTION_RECORDED, AuditEntityType.DEPOSIT, savedEntity.getId(),
+                String.format("Recorded %s deposit transaction of %s", requestDTO.transactionType(), txAmount),
+                Map.of("type", requestDTO.transactionType().name(), "amount", txAmount)
+        ));
 
         log.info("Security deposit transaction recorded. tenancyId={}, type={}, amount={}",
                 tenancyId, requestDTO.transactionType(), txAmount);
